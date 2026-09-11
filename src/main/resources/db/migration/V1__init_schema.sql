@@ -9,13 +9,28 @@ CREATE TABLE customers (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Accounts
+-- 2. General Ledger Accounts (Chart of Accounts)
+CREATE TABLE gl_accounts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code VARCHAR(20) UNIQUE NOT NULL,                      -- e.g., 'FX_CLEARING', 'FEE_INCOME', 'VAULT'
+    account_type VARCHAR(20) NOT NULL,                     -- ASSET, LIABILITY, INCOME, EXPENSE
+    name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Baseline GL System Accounts
+INSERT INTO gl_accounts (id, code, account_type, name) VALUES 
+('00000000-0000-0000-0000-000000000001', 'FX_CLEARING', 'LIABILITY', 'Foreign Exchange Clearing Account'),
+('00000000-0000-0000-0000-000000000002', 'FEE_INCOME', 'INCOME', 'Transaction Fee Income Account'),
+('00000000-0000-0000-0000-000000000003', 'VAULT', 'ASSET', 'Central Cash Vault Account');
+
+-- 3. Checking / Settlement Accounts
 CREATE TABLE accounts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id UUID NOT NULL REFERENCES customers(id),
     account_number VARCHAR(30) UNIQUE NOT NULL,
     currency VARCHAR(3) NOT NULL DEFAULT 'VND',
-    status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',          -- ACTIVE, FROZEN, CLOSED
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING_KYC',     -- PENDING_KYC, ACTIVE, FROZEN, CLOSED
     current_balance NUMERIC(19, 4) NOT NULL DEFAULT 0.0000,
     version BIGINT NOT NULL DEFAULT 0,                     -- For Optimistic Locking
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -24,35 +39,82 @@ CREATE TABLE accounts (
 
 CREATE INDEX idx_accounts_customer ON accounts(customer_id);
 
--- 3. Transactions
+-- 4. Account Holds / Reservations (Available Balance = Current Balance - Active Holds)
+CREATE TABLE account_holds (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id UUID NOT NULL REFERENCES accounts(id),
+    amount NUMERIC(19, 4) NOT NULL CHECK (amount > 0),
+    reason VARCHAR(255),
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',          -- ACTIVE, RELEASED, CAPTURED
+    expires_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_holds_account_status ON account_holds(account_id, status) WHERE status = 'ACTIVE';
+
+-- 5. Foreign Exchange (FX) Rates
+CREATE TABLE fx_rates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    base_currency VARCHAR(3) NOT NULL,                     -- e.g. 'USD'
+    quote_currency VARCHAR(3) NOT NULL,                    -- e.g. 'VND'
+    rate NUMERIC(18, 8) NOT NULL CHECK (rate > 0),         -- 1 base_currency = rate * quote_currency
+    source VARCHAR(50) NOT NULL DEFAULT 'MANUAL',          -- MANUAL, EXTERNAL_PROVIDER
+    effective_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (base_currency, quote_currency, effective_at)
+);
+
+CREATE INDEX idx_fx_rates_lookup ON fx_rates(base_currency, quote_currency, effective_at DESC);
+
+-- Baseline FX Seed Rates
+INSERT INTO fx_rates (base_currency, quote_currency, rate, source, effective_at) VALUES 
+('USD', 'VND', 25450.00000000, 'MANUAL', CURRENT_TIMESTAMP),
+('VND', 'USD', 0.00003929, 'MANUAL', CURRENT_TIMESTAMP),
+('AUD', 'VND', 16800.00000000, 'MANUAL', CURRENT_TIMESTAMP),
+('VND', 'AUD', 0.00005952, 'MANUAL', CURRENT_TIMESTAMP),
+('USD', 'AUD', 1.51500000, 'MANUAL', CURRENT_TIMESTAMP),
+('AUD', 'USD', 0.66000000, 'MANUAL', CURRENT_TIMESTAMP);
+
+-- 6. Transactions
 CREATE TABLE transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     reference_number VARCHAR(64) UNIQUE NOT NULL,
     source_account_id UUID NOT NULL REFERENCES accounts(id),
     destination_account_id UUID NOT NULL REFERENCES accounts(id),
-    amount NUMERIC(19, 4) NOT NULL CHECK (amount > 0),
-    currency VARCHAR(3) NOT NULL,
+    source_amount NUMERIC(19, 4) NOT NULL CHECK (source_amount > 0),
+    source_currency VARCHAR(3) NOT NULL,
+    destination_amount NUMERIC(19, 4) NOT NULL CHECK (destination_amount > 0),
+    destination_currency VARCHAR(3) NOT NULL,
+    fx_rate_applied NUMERIC(18, 8),                        -- NULL if same currency, rate if cross-currency
     status VARCHAR(30) NOT NULL,                           -- INITIATED, SETTLED, FAILED
     failure_reason VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP WITH TIME ZONE
+    completed_at TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT chk_different_accounts CHECK (source_account_id != destination_account_id)
 );
 
--- 4. Double-Entry Ledger Entries (APPEND-ONLY: Never update or delete)
+CREATE INDEX idx_transactions_status_created ON transactions(status, created_at);
+
+-- 7. Double-Entry Ledger Entries (APPEND-ONLY: Polymorphic reference & Currency per row)
 CREATE TABLE ledger_entries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     transaction_id UUID NOT NULL REFERENCES transactions(id),
-    account_id UUID NOT NULL REFERENCES accounts(id),
+    account_id UUID NOT NULL,                              -- References accounts(id) or gl_accounts(id)
+    account_ref_type VARCHAR(10) NOT NULL DEFAULT 'CUSTOMER', -- 'CUSTOMER' or 'GL'
     entry_type VARCHAR(10) NOT NULL,                      -- 'DEBIT' or 'CREDIT'
     amount NUMERIC(19, 4) NOT NULL CHECK (amount > 0),
-    running_balance NUMERIC(19, 4) NOT NULL,
+    currency VARCHAR(3) NOT NULL,                         -- Currency of this leg
+    running_balance NUMERIC(19, 4) NOT NULL,               -- Balance snapshot immediately post-entry
+    fx_rate_applied NUMERIC(18, 8),                       -- Populated on cross-currency clearing legs
+    base_currency_equivalent NUMERIC(19, 4),               -- Normalized equivalent for audit
     description VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_ledger_account_created ON ledger_entries(account_id, created_at DESC);
+CREATE INDEX idx_ledger_account_created ON ledger_entries(account_ref_type, account_id, created_at DESC);
+CREATE INDEX idx_ledger_currency ON ledger_entries(currency);
 
--- 5. Idempotency Records
+-- 8. Idempotency Records
 CREATE TABLE idempotency_records (
     key VARCHAR(255) PRIMARY KEY,
     request_hash VARCHAR(64) NOT NULL,
@@ -63,7 +125,9 @@ CREATE TABLE idempotency_records (
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
--- 6. Transactional Outbox Events
+CREATE INDEX idx_idempotency_pending ON idempotency_records(status, created_at) WHERE status = 'PENDING';
+
+-- 9. Transactional Outbox Events
 CREATE TABLE outbox_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     aggregate_type VARCHAR(100) NOT NULL,                 -- 'TRANSFER', 'ACCOUNT'

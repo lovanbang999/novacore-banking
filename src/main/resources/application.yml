@@ -13,6 +13,7 @@ spring:
     password: novacore_password
     driver-class-name: org.postgresql.Driver
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: validate
     show-sql: true
@@ -22,3 +23,13 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+novacore:
+  idempotency:
+    reaper:
+      timeout-seconds: 30
+      fixed-rate-ms: 5000

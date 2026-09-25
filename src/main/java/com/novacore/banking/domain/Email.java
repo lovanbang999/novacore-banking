@@ -3,6 +3,6 @@ package com.novacore.banking.domain;
 /**
  * email
  */
-public class email {
+public class Email {
 
 }

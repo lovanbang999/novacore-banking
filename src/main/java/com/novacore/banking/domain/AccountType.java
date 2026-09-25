@@ -1,6 +1,6 @@
 package com.novacore.banking.domain;
 
-public enum AcountType {
+public enum AccountType {
     CHECKING,
     SAVINGS
 }

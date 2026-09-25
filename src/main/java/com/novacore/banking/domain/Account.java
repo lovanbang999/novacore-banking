@@ -10,6 +10,9 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import com.novacore.banking.domain.exception.AccountClosureException;
+import com.novacore.banking.domain.exception.IllegalStateTransitionException;
+
 @Entity
 @Table(name = "accounts")
 @Getter
@@ -62,7 +65,7 @@ public class Account {
 
     public void close() {
         if (this.currentBalance.compareTo(BigDecimal.ZERO) != 0) {
-            throw new IllegalStateException("Account balance must be exactly 0.0000 to close.");
+            throw AccountClosureException.nonZeroBalance(this.currentBalance);
         }
 
         transitionTo(AccountStatus.CLOSED, "Cannot close account from current state: " + this.status);
@@ -70,7 +73,7 @@ public class Account {
 
     private void transitionTo(AccountStatus targetStatus, String errorMessage) {
         if (!this.status.canTransitionTo(targetStatus)) {
-            throw new IllegalStateException(errorMessage);
+            throw new IllegalStateTransitionException(this.status, targetStatus);
         }
 
         this.status = targetStatus;

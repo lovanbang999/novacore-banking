@@ -25,7 +25,7 @@ public class AccountHold {
     @Column(name = "account_id", nullable = false)
     private UUID accountId;
 
-    @Column(name = "account", precision = 19, scale = 4, nullable = false)
+    @Column(name = "amount", precision = 19, scale = 4, nullable = false)
     private BigDecimal amount;
 
     @Column(name = "reason")

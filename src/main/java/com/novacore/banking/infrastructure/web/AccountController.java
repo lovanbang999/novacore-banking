@@ -21,4 +21,10 @@ public class AccountController {
         AccountResponse response = accountService.openAccount(command);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+
+    @PatchMapping("/{accountNumber}/activate")
+    public ResponseEntity<AccountResponse> activeAccount(@PathVariable String accountNumber) {
+        AccountResponse response = accountService.activeAccount(accountNumber);
+        return ResponseEntity.ok(response);
+    }
 }

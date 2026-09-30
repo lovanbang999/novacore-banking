@@ -8,6 +8,10 @@ import com.novacore.banking.application.dtos.AccountResponse;
 import com.novacore.banking.application.dtos.OpenAccountCommand;
 import com.novacore.banking.domain.Account;
 import com.novacore.banking.domain.AccountStatus;
+import com.novacore.banking.domain.Customer;
+import com.novacore.banking.domain.KycStatus;
+import com.novacore.banking.domain.exception.AccountNotFoundException;
+import com.novacore.banking.domain.exception.KycNotVerifiedException;
 import com.novacore.banking.infrastructure.persistence.AccountRepository;
 import com.novacore.banking.infrastructure.persistence.CustomerRepository;
 import com.novacore.banking.shared.exception.CustomerNotFoundException;
@@ -38,6 +42,24 @@ public class AccountService {
         return AccountResponse.fromEntity(savedAccount, BigDecimal.ZERO.setScale(4));
     }
 
+    public AccountResponse activeAccount(String accountNumber) {
+        Account account = accountRepository.findByAccountNumber(accountNumber)
+            .orElseThrow(() -> new AccountNotFoundException(accountNumber));
+        
+        Customer customer = customerRepository.findById(account.getCustomerId())
+            .orElseThrow(() -> new CustomerNotFoundException(account.getCustomerId()));
+        
+        if (customer.getKycStatus() != KycStatus.VERIFIED) {
+            throw new KycNotVerifiedException(customer.getId(), customer.getKycStatus());
+        }
+
+        account.activate();
+
+        Account savedAccount = accountRepository.save(account);
+        return AccountResponse.fromEntity(savedAccount, savedAccount.getCurrentBalance());
+    }
+
+    // Private method
     private String generateUniqueAccountNumber(String currency) {
         String accNo;
 

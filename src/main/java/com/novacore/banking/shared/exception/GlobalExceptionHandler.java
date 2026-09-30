@@ -6,6 +6,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import com.novacore.banking.domain.exception.AccountNotFoundException;
+import com.novacore.banking.domain.exception.IllegalStateTransitionException;
+import com.novacore.banking.domain.exception.KycNotVerifiedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -22,7 +25,6 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
-
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
@@ -62,5 +64,38 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(AccountNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleAccountNotFound(AccountNotFoundException ex) {
+        ErrorResponse response = ErrorResponse.of(
+            HttpStatus.NOT_FOUND.value(),
+            HttpStatus.NOT_FOUND.getReasonPhrase(),
+            ex.getMessage()
+        );
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(KycNotVerifiedException.class)
+    public ResponseEntity<ErrorResponse> handleKycNotVerified(KycNotVerifiedException ex) {
+        ErrorResponse response = ErrorResponse.of(
+            HttpStatus.UNPROCESSABLE_CONTENT.value(),
+            HttpStatus.UNPROCESSABLE_CONTENT.getReasonPhrase(),
+            ex.getMessage()
+        );
+
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(response);
+    }
+
+    @ExceptionHandler(IllegalStateTransitionException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalStateTransition(IllegalStateTransitionException ex) {
+        ErrorResponse response = ErrorResponse.of(
+            HttpStatus.UNPROCESSABLE_CONTENT.value(),
+            HttpStatus.UNPROCESSABLE_CONTENT.getReasonPhrase(),
+            ex.getMessage()
+        );
+
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(response);
     }
 }

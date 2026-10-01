@@ -6,7 +6,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import com.novacore.banking.application.AccountService;
+import com.novacore.banking.application.dtos.AccountHoldResponse;
 import com.novacore.banking.application.dtos.AccountResponse;
+import com.novacore.banking.application.dtos.CreateAccountHoldCommand;
 import com.novacore.banking.application.dtos.OpenAccountCommand;
 import com.novacore.banking.shared.response.ApiResponse;
 import com.novacore.banking.shared.response.SuccessCode;
@@ -42,5 +44,18 @@ public class AccountController {
     public ResponseEntity<ApiResponse<AccountResponse>> getAccountDetails(@PathVariable String accountNumber) {
         AccountResponse response = accountService.getAccountDetails(accountNumber);
         return ApiResponse.success(SuccessCode.ACCOUNT_DETAILS_SUCCESS, response);
+    }
+
+    @PostMapping("/{accountNumber}/holds")
+    @Operation(
+        summary = "Create account hold", 
+        description = "Places a temporary hold on funds, reducing available balance but not current balance"
+    )
+    public ResponseEntity<ApiResponse<AccountHoldResponse>> createAccountHold(
+        @PathVariable  String accountNumber,
+        @Valid @RequestBody CreateAccountHoldCommand command
+    ) {
+        AccountHoldResponse response = accountService.createAccountHold(accountNumber, command);
+        return ApiResponse.success(SuccessCode.ACCOUNT_HOLD_CREATED, response);
     }
 }

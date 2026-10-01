@@ -33,4 +33,14 @@ public class AccountController {
         AccountResponse response = accountService.activeAccount(accountNumber);
         return ApiResponse.success(SuccessCode.ACCOUNT_ACTIVATED, response);
     }
+
+    @GetMapping("/{accountNumber}")
+    @Operation(
+        summary = "Get account details", 
+        description = "Retrieves account status, current balance, active holds, and calculated available balance"
+    )
+    public ResponseEntity<ApiResponse<AccountResponse>> getAccountDetails(@PathVariable String accountNumber) {
+        AccountResponse response = accountService.getAccountDetails(accountNumber);
+        return ApiResponse.success(SuccessCode.ACCOUNT_DETAILS_SUCCESS, response);
+    }
 }

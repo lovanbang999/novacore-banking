@@ -13,9 +13,11 @@ public record AccountResponse(
     String currency,
     AccountStatus status,
     BigDecimal currentBalance,
-    BigDecimal availableBalance
+    BigDecimal availableBalance,
+    BigDecimal activeHoldsAount
 ) {
     public static AccountResponse fromEntity(Account account, BigDecimal availableBalance) {
+        BigDecimal holds = account.getCurrentBalance().subtract(availableBalance);
         return new AccountResponse(
             account.getId(),
             account.getAccountNumber(),
@@ -23,7 +25,21 @@ public record AccountResponse(
             account.getCurrency(),
             account.getStatus(),
             account.getCurrentBalance(),
-            availableBalance
+            availableBalance,
+            holds
+        );
+    }
+
+    public static AccountResponse fromEntity(Account account, BigDecimal availableBalance, BigDecimal activeHoldsAmount) {
+        return new AccountResponse(
+            account.getId(),
+            account.getAccountNumber(),
+            account.getCustomerId(),
+            account.getCurrency(),
+            account.getStatus(),
+            account.getCurrentBalance(),
+            availableBalance,
+            activeHoldsAmount
         );
     }
 }

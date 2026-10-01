@@ -2,11 +2,12 @@ package com.novacore.banking.infrastructure.web;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import com.novacore.banking.application.AccountService;
 import com.novacore.banking.application.dtos.AccountResponse;
 import com.novacore.banking.application.dtos.OpenAccountCommand;
+import com.novacore.banking.shared.response.ApiResponse;
+import com.novacore.banking.shared.response.SuccessCode;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -17,14 +18,14 @@ public class AccountController {
     private final AccountService accountService;
 
     @PostMapping
-    public ResponseEntity<AccountResponse> openAccount(@Valid @RequestBody OpenAccountCommand command) {
+    public ResponseEntity<ApiResponse<AccountResponse>> openAccount(@Valid @RequestBody OpenAccountCommand command) {
         AccountResponse response = accountService.openAccount(command);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ApiResponse.success(SuccessCode.ACCOUNT_OPEN_SUCCESS, response);
     }
 
     @PatchMapping("/{accountNumber}/activate")
-    public ResponseEntity<AccountResponse> activeAccount(@PathVariable String accountNumber) {
+    public ResponseEntity<ApiResponse<AccountResponse>> activeAccount(@PathVariable String accountNumber) {
         AccountResponse response = accountService.activeAccount(accountNumber);
-        return ResponseEntity.ok(response);
+        return ApiResponse.success(SuccessCode.ACCOUNT_ACTIVATED, response);
     }
 }

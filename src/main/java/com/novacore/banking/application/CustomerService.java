@@ -1,17 +1,15 @@
 package com.novacore.banking.application;
 
 import lombok.RequiredArgsConstructor;
-
-import java.util.UUID;
-
 import org.springframework.stereotype.Service;
+import java.util.UUID;
 import com.novacore.banking.application.dtos.CreateCustomerCommand;
 import com.novacore.banking.application.dtos.CustomerResponse;
 import com.novacore.banking.application.dtos.UpdateKycStatusCommand;
 import com.novacore.banking.domain.Customer;
 import com.novacore.banking.domain.KycStatus;
 import com.novacore.banking.infrastructure.persistence.CustomerRepository;
-import com.novacore.banking.shared.exception.CustomerNotFoundException;
+import com.novacore.banking.domain.exception.CustomerNotFoundException;
 
 @Service
 @RequiredArgsConstructor 

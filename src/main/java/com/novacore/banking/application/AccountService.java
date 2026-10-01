@@ -14,7 +14,7 @@ import com.novacore.banking.domain.exception.AccountNotFoundException;
 import com.novacore.banking.domain.exception.KycNotVerifiedException;
 import com.novacore.banking.infrastructure.persistence.AccountRepository;
 import com.novacore.banking.infrastructure.persistence.CustomerRepository;
-import com.novacore.banking.shared.exception.CustomerNotFoundException;
+import com.novacore.banking.domain.exception.CustomerNotFoundException;
 
 @Service
 @AllArgsConstructor

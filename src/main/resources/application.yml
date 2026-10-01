@@ -27,6 +27,16 @@ spring:
     redis:
       host: localhost
       port: 6379
+  springdoc:
+    api-docs:
+      path: /v3/api-docs
+    swagger-ui:
+      path: /swagger-ui.html
+      operations-sorter: method # Sort operations by method (GET, POST, etc.)
+      tags-sorter: method # Sort tags by method (GET, POST, etc.)
+      display-request-duration: true # Display request duration
+      doc-expansion: list # Expand all operations by default
+      enabled: true # Enable swagger ui
 
 novacore:
   idempotency:

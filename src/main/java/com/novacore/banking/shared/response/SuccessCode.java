@@ -13,7 +13,8 @@ public enum SuccessCode {
 
     // --- Account ---
     ACCOUNT_OPEN_SUCCESS("account.open.success", HttpStatus.CREATED),
-    ACCOUNT_ACTIVATED("account.activate.success", HttpStatus.OK);
+    ACCOUNT_ACTIVATED("account.activate.success", HttpStatus.OK),
+    ACCOUNT_DETAILS_SUCCESS("account.details.success", HttpStatus.OK);
 
     private final String key;
     private final HttpStatus defaultStatus;

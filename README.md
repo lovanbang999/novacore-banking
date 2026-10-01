@@ -19,55 +19,52 @@ The system implements strict **double-entry bookkeeping**, **deadlock-free concu
 
 ## System Architecture
 
-```
-                 +-------------------------------------------------+
-                 |                Client Applications              |
-                 |      (Mobile Banking / Web Portal / Partners)   |
-                 +-------------------------------------------------+
-                                           |
-                                     HTTPS / JSON
-                         (Header: Idempotency-Key: <UUID>)
-                                           v
-+---------------------------------------------------------------------------------+
-|                                NovaCore Engine                                  |
-|                                                                                 |
-|  [Idempotency Filter / Interceptor] <---> [Redis Cache / Postgres Table]        |
-|                                                                                 |
-|  +---------------------------------------------------------------------------+  |
-|  |                     Domain Services (Spring Boot)                         |  |
-|  |                                                                           |  |
-|  |  +---------------------+   +---------------------+   +-----------------+  |  |
-|  |  |   Account Context   |   |   Payment Context   |   |  Ledger Context |  |  |
-|  |  |  (Status & Limits)  |   | (Orchestrator/Saga) |   | (Double-Entry)  |  |  |
-|  |  +---------------------+   +---------------------+   +-----------------+  |  |
-|  |                                                                           |  |
-|  |             +-----------------------------------------------+             |  |
-|  |             |      Transactional Outbox Service             |             |  |
-|  |             +-----------------------------------------------+             |  |
-|  |  +---------------------------------------------------------------------+  |  |
-|  +---------------------------------------|-----------------------------------+  |
-|                                          |                                      |
-|                                          | Atomic DB Transaction (@Transactional)|
-|                                          v                                      |
-|  +---------------------------------------------------------------------------+  |
-|  |                      PostgreSQL Database (ACID)                           |  |
-|  |   [accounts]   [transactions]   [ledger_entries]   [outbox_events]         |  |
-|  +---------------------------------------------------------------------------+  |
-+---------------------------------------------------------------------------------+
-                                           |
-                                  Scheduled Poller / CDC
-                                           v
-                             +---------------------------+
-                             |     Apache Kafka Bus      |
-                             | Topic: banking.transfers  |
-                             +---------------------------+
-                                           |
-                   +-----------------------+-----------------------+
-                   v                                               v
-     +---------------------------+                   +---------------------------+
-     |   Notification Consumer   |                   |    Audit & Analytics      |
-     |    (Email, Push, SMS)     |                   |       Data Lake           |
-     +---------------------------+                   +---------------------------+
+```mermaid
+flowchart TD
+    subgraph Clients["Client Applications"]
+        Mobile["Mobile Banking Client"]
+        Web["Web Banking Portal"]
+        Partners["Third-Party & Partner APIs"]
+    end
+
+    subgraph Edge["API Gateway & Security Boundary"]
+        Gateway["RESTful API Gateway<br/>• Idempotency-Key Header<br/>• Accept-Language Header (i18n)<br/>• OpenAPI / Swagger Documentation"]
+        Idempotency["Idempotency Filter<br/>(SHA-256 Payload Hash Validation)"]
+        Redis[("Redis Cache<br/>Idempotency Key Lock & Response Cache")]
+    end
+
+    subgraph Core["NovaCore Banking Engine (Java 21 / Spring Boot)"]
+        subgraph Contexts["Domain Contexts (Domain-Driven Design)"]
+            CustomerCtx["Customer Context<br/>(Onboarding & KYC Verification)"]
+            AccountCtx["Account Context<br/>(Account Lifecycle & Balance Holds)"]
+            PaymentCtx["Payment Context<br/>(Saga Orchestrator & Pessimistic Locking)"]
+            LedgerCtx["Ledger Context<br/>(Immutable Double-Entry Accounting)"]
+        end
+        Outbox["Transactional Outbox Publisher"]
+    end
+
+    subgraph Database["Persistence Layer (ACID Compliance)"]
+        Postgres[("PostgreSQL Database<br/>• customers & accounts<br/>• transactions & ledger_entries<br/>• account_holds & outbox_events")]
+    end
+
+    subgraph Messaging["Event-Driven Streaming"]
+        Kafka["Apache Kafka Event Bus<br/>(Topic: banking.transfers)"]
+        Notification["Notification Service<br/>(SMS, Push, Email)"]
+        Audit["Audit & Analytics Engine<br/>(Data Lake & Compliance)"]
+    end
+
+    %% Interactions
+    Clients -->|HTTPS / JSON| Gateway
+    Gateway --> Idempotency
+    Idempotency <-->|Validate / Cache Response| Redis
+    Idempotency --> Contexts
+
+    Contexts --> Outbox
+    Contexts & Outbox -->|Atomic DB Transaction @Transactional| Postgres
+
+    Postgres -.->|Scheduled Poller / CDC| Kafka
+    Kafka --> Notification
+    Kafka --> Audit
 ```
 
 ---

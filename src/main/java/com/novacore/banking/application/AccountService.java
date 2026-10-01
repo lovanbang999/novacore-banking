@@ -4,10 +4,15 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.concurrent.ThreadLocalRandom;
+
+import com.novacore.banking.application.dtos.AccountHoldResponse;
 import com.novacore.banking.application.dtos.AccountResponse;
+import com.novacore.banking.application.dtos.CreateAccountHoldCommand;
 import com.novacore.banking.application.dtos.OpenAccountCommand;
 import com.novacore.banking.domain.Account;
+import com.novacore.banking.domain.AccountHold;
 import com.novacore.banking.domain.AccountStatus;
 import com.novacore.banking.domain.Customer;
 import com.novacore.banking.domain.HoldStatus;
@@ -76,6 +81,38 @@ public class AccountService {
         BigDecimal availableBalance = account.getCurrentBalance().subtract(activeHolds);
 
         return AccountResponse.fromEntity(account, availableBalance, activeHolds);
+    }
+
+
+    public AccountHoldResponse createAccountHold(String accountNumber, CreateAccountHoldCommand command) {
+        Account account = accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException(accountNumber));
+
+        if (account.getStatus() != AccountStatus.ACTIVE) {
+            throw new IllegalStateException("Cannot create hold on non-ACTIVE account. Current status: " + account.getStatus());
+        }
+
+        BigDecimal activeHolds = accountHoldingRepository.sumAmountByAccountIdAndStatus(account.getId(), HoldStatus.ACTIVE);
+
+        if (activeHolds == null) {
+            activeHolds = BigDecimal.ZERO.setScale(4);
+        }
+
+        BigDecimal availableBalance = account.getCurrentBalance().subtract(activeHolds);
+
+        if (availableBalance.compareTo(command.amount()) < 0) {
+            throw new IllegalStateException("Insufficient available balance to create hold. Available: " + availableBalance + ", Requested: " + command.amount());
+        }
+
+        AccountHold hold = AccountHold.builder()
+            .accountId(account.getId())
+            .amount(command.amount().setScale(4, RoundingMode.HALF_UP))
+            .reason(command.reason())
+            .status(HoldStatus.ACTIVE)
+            .build();
+
+        AccountHold savedHold = accountHoldingRepository.save(hold);
+
+        return AccountHoldResponse.fromEntity(savedHold);
     }
 
     // Private method
